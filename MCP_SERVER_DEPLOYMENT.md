@@ -174,7 +174,7 @@ https://fly.io/apps/powerpoint-mcp-server-delicate-surf-2694/monitoring
 - `python-pptx>=0.6.21` - PowerPoint manipulation
 - `Pillow>=8.0.0` - Image processing
 - `fonttools>=4.0.0` - Font handling
-- `mcp>=1.3.0` - MCP protocol
+- `mcp>=1.3.0,<2.0.0` - MCP protocol (the server uses the MCP 1.x FastMCP API)
 
 ---
 

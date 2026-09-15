@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PowerPoint Studio</title>
+  <style>
+    :root { color-scheme: dark; --ink: #eef4ef; --muted: #9eaaa2; --bg: #101613; --panel: #18211d; --line: #2b3931; --accent: #d7f36b; --accent-ink: #18210d; --error: #ff927e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; color: var(--ink); background: radial-gradient(circle at 80% 0%, #29402b 0, transparent 34%), var(--bg); font: 15px/1.5 Georgia, "Times New Roman", serif; }
+    .shell { max-width: 1180px; min-height: 100vh; margin: auto; padding: 34px 24px; display: grid; grid-template-columns: 280px 1fr; gap: 24px; }
+    aside, main { border: 1px solid var(--line); background: rgba(24, 33, 29, .9); }
+    aside { padding: 24px; align-self: start; }
+    main { min-height: 700px; display: flex; flex-direction: column; }
+    h1, h2, p { margin-top: 0; } h1 { font-size: 30px; line-height: 1; letter-spacing: 0; } h2 { font-size: 18px; }
+    .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: 2px; font: 11px/1.2 Arial, sans-serif; }
+    .status { padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 12px Arial, sans-serif; }
+    .dot { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--accent); } .dot.bad { background: var(--error); }
+    .intro { color: var(--muted); }
+    .chat { flex: 1; overflow: auto; padding: 28px; }
+    .message { max-width: 82%; margin: 0 0 18px; padding: 14px 16px; white-space: pre-wrap; border: 1px solid var(--line); }
+    .message.user { margin-left: auto; background: #263629; border-color: #425542; } .message.assistant { background: #141b17; }
+    .composer { display: flex; gap: 10px; padding: 18px; border-top: 1px solid var(--line); }
+    textarea { flex: 1; min-height: 54px; resize: vertical; padding: 14px; color: var(--ink); background: #101613; border: 1px solid var(--line); font: inherit; }
+    button { border: 0; padding: 0 22px; color: var(--accent-ink); background: var(--accent); font: bold 14px Arial, sans-serif; cursor: pointer; } button:disabled { opacity: .5; cursor: wait; }
+    .trace { margin-top: 20px; color: var(--muted); font: 12px Arial, sans-serif; }
+    @media (max-width: 760px) { .shell { display: block; padding: 14px; } aside { margin-bottom: 14px; } main { min-height: 78vh; } .message { max-width: 94%; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="eyebrow">Local workspace</div>
+      <h1>PowerPoint<br>Studio</h1>
+      <p class="intro">Describe the deck you want. The assistant can build it, style it, and save it through your local MCP server.</p>
+      <div class="status"><span id="dot" class="dot"></span><span id="status">Connecting...</span></div>
+      <div id="presentations" class="trace">No presentations loaded.</div>
+    </aside>
+    <main>
+      <div id="chat" class="chat"><div class="message assistant">What should we make today?</div></div>
+      <form id="composer" class="composer">
+        <textarea id="prompt" placeholder="Create a five-slide proposal about..." required></textarea>
+        <button id="send" type="submit">Build</button>
+      </form>
+    </main>
+  </div>
+  <script>
+    const chat = document.getElementById('chat');
+    const prompt = document.getElementById('prompt');
+    const send = document.getElementById('send');
+    const history = [];
+    function addMessage(role, content) { const item = document.createElement('div'); item.className = `message ${role}`; item.textContent = content; chat.appendChild(item); chat.scrollTop = chat.scrollHeight; }
+    async function refreshStatus() {
+      try {
+        const health = await fetch('/api/health').then(r => r.json());
+        document.getElementById('status').textContent = health.mcp === 'healthy' ? `Ready · ${health.model}` : 'MCP server unavailable';
+        document.getElementById('dot').classList.toggle('bad', health.mcp !== 'healthy' || !health.openai_configured);
+        const presentations = await fetch('/api/presentations').then(r => r.json());
+        document.getElementById('presentations').textContent = presentations.total_presentations ? `${presentations.total_presentations} presentation(s) loaded` : 'No presentations loaded.';
+      } catch (error) { document.getElementById('status').textContent = 'Service unavailable'; document.getElementById('dot').classList.add('bad'); }
+    }
+    document.getElementById('composer').addEventListener('submit', async event => {
+      event.preventDefault(); const content = prompt.value.trim(); if (!content) return;
+      addMessage('user', content); history.push({ role: 'user', content }); prompt.value = ''; send.disabled = true; send.textContent = 'Working';
+      try { const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) }); const data = await response.json(); if (!response.ok) throw new Error(data.detail || 'Request failed'); addMessage('assistant', data.reply); history.push({ role: 'assistant', content: data.reply }); await refreshStatus(); }
+      catch (error) { addMessage('assistant', `Error: ${error.message}`); }
+      finally { send.disabled = false; send.textContent = 'Build'; prompt.focus(); }
+    });
+    refreshStatus();
+  </script>
+</body>
+</html>

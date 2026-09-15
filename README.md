@@ -123,11 +123,23 @@ curl http://localhost:8000/mcp \
 
 ### Option 3: Docker (Production Deployment)
 
-Docker automatically runs the server in HTTP mode, perfect for production deployments.
+Docker automatically runs the server in HTTP mode. The compose stack also includes a local web GUI backed by OpenAI.
 
 #### Using docker-compose (easiest)
 ```bash
-docker-compose up
+cp .env.example .env
+# Edit .env and set OPENAI_API_KEY to your key
+docker compose up --build
+```
+
+Open the GUI at <http://localhost:8080>. The MCP HTTP API remains available at <http://localhost:8000>.
+
+The OpenAI key is passed only to the `powerpoint-gui` container. The GUI loads the MCP tool schemas from the server, lets OpenAI choose tools, and forwards each tool call to the local MCP API. Set `OPENAI_MODEL` in `.env` to use a different model.
+
+To stop the stack:
+
+```bash
+docker compose down
 ```
 
 #### Or build manually

@@ -16,7 +16,7 @@ COPY openapi.json ./
 COPY openapi_optimized.json ./
 
 # Install dependencies using uv
-RUN uv pip install --system --no-cache chuk-mcp-server>=0.4.4 python-pptx>=0.6.21 Pillow>=8.0.0 fonttools>=4.0.0 mcp>=1.3.0 fastapi uvicorn
+RUN uv pip install --system --no-cache chuk-mcp-server>=0.4.4 python-pptx>=0.6.21 Pillow>=8.0.0 fonttools>=4.0.0 'mcp>=1.3.0,<2.0.0' fastapi uvicorn
 
 # Expose HTTP port
 EXPOSE 8000

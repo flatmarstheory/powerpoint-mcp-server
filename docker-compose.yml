@@ -9,3 +9,15 @@ services:
       - ./presentations:/app/presentations
       - ./templates:/app/templates
     restart: unless-stopped
+
+  powerpoint-gui:
+    build: ./gui
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - MCP_SERVER_URL=http://powerpoint-mcp-server:8000
+    depends_on:
+      - powerpoint-mcp-server
+    restart: unless-stopped
