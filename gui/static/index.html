@@ -50,6 +50,7 @@
     const send = document.getElementById('send');
     const history = [];
     function addMessage(role, content) { const item = document.createElement('div'); item.className = `message ${role}`; item.textContent = content; chat.appendChild(item); chat.scrollTop = chat.scrollHeight; }
+    function addDownloads(files) { if (!files || !files.length) return; const item = document.createElement('div'); item.className = 'message assistant'; files.forEach(file => { const link = document.createElement('a'); link.href = `/api/download/${encodeURIComponent(file)}`; link.textContent = `Download ${file}`; link.style.color = 'var(--accent)'; link.style.display = 'block'; link.download = file; item.appendChild(link); }); chat.appendChild(item); chat.scrollTop = chat.scrollHeight; }
     async function refreshStatus() {
       try {
         const health = await fetch('/api/health').then(r => r.json());
@@ -62,7 +63,7 @@
     document.getElementById('composer').addEventListener('submit', async event => {
       event.preventDefault(); const content = prompt.value.trim(); if (!content) return;
       addMessage('user', content); history.push({ role: 'user', content }); prompt.value = ''; send.disabled = true; send.textContent = 'Working';
-      try { const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) }); const data = await response.json(); if (!response.ok) throw new Error(data.detail || 'Request failed'); addMessage('assistant', data.reply); history.push({ role: 'assistant', content: data.reply }); await refreshStatus(); }
+      try { const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) }); const data = await response.json(); if (!response.ok) throw new Error(data.detail || 'Request failed'); addMessage('assistant', data.reply); addDownloads(data.downloads); history.push({ role: 'assistant', content: data.reply }); await refreshStatus(); }
       catch (error) { addMessage('assistant', `Error: ${error.message}`); }
       finally { send.disabled = false; send.textContent = 'Build'; prompt.focus(); }
     });

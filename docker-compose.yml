@@ -5,6 +5,7 @@ services:
       - "8000:8000"
     environment:
       - PPT_TEMPLATE_PATH=/app/templates
+      - PPT_ASSET_PATH=/app/presentations/assets
     volumes:
       - ./presentations:/app/presentations
       - ./templates:/app/templates
@@ -18,6 +19,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
       - MCP_SERVER_URL=http://powerpoint-mcp-server:8000
+    volumes:
+      - ./presentations:/app/presentations:ro
     depends_on:
       - powerpoint-mcp-server
     restart: unless-stopped

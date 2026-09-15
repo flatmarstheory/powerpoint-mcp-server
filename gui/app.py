@@ -12,11 +12,17 @@ from pydantic import BaseModel, Field
 
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000").rstrip("/")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-MAX_TOOL_ROUNDS = 8
+MAX_TOOL_ROUNDS = 24
 SYSTEM_PROMPT = (
     "You are a PowerPoint production assistant. Use the available tools to create and edit presentations. "
     "When a user asks for a presentation, execute the required tools instead of only describing steps. "
-    "Keep the user informed about what you did and mention presentation IDs or saved file paths when available."
+    "For a multi-slide request, create the presentation first, then add all requested slides and assets before replying. "
+    "Keep the user informed about what you did and mention presentation IDs or saved file paths when available. "
+    "For process, architecture, workflow, timeline, or relationship visuals, use create_drawio_diagram and "
+    "provide clear nodes and edges; include slide_index when the diagram belongs on a slide. "
+    "For relevant external visuals, use search_web_images, choose an appropriate result with attribution, "
+    "download it with download_web_image, then place it using manage_image. "
+    "Always save the completed presentation to /app/presentations using save_presentation, with a descriptive .pptx filename."
 )
 
 app = FastAPI(title="PowerPoint Studio")
@@ -63,6 +69,22 @@ def serialize_tool_result(result: Any) -> str:
         return json.dumps({"result": str(result)}, ensure_ascii=True)
 
 
+def find_saved_file_paths(value: Any) -> list[str]:
+    if isinstance(value, dict):
+        paths = []
+        if isinstance(value.get("file_path"), str) and value["file_path"].lower().endswith(".pptx"):
+            paths.append(value["file_path"])
+        for child in value.values():
+            paths.extend(find_saved_file_paths(child))
+        return paths
+    if isinstance(value, list):
+        paths = []
+        for child in value:
+            paths.extend(find_saved_file_paths(child))
+        return paths
+    return []
+
+
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(Path(__file__).parent / "static" / "index.html")
@@ -92,6 +114,21 @@ async def presentations() -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=f"MCP server unavailable: {error}") from error
 
 
+@app.get("/api/download/{filename:path}")
+async def download(filename: str) -> FileResponse:
+    presentations_root = Path("/app/presentations").resolve()
+    requested_path = (presentations_root / filename).resolve()
+    if presentations_root not in requested_path.parents or requested_path.suffix.lower() != ".pptx":
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    if not requested_path.is_file():
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    return FileResponse(
+        requested_path,
+        filename=requested_path.name,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
+
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest) -> dict[str, Any]:
     api_key = os.getenv("OPENAI_API_KEY")
@@ -106,6 +143,7 @@ async def chat(request: ChatRequest) -> dict[str, Any]:
         conversation: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         conversation.extend(message.model_dump() for message in request.messages)
         trace: list[dict[str, Any]] = []
+        saved_files: list[str] = []
 
         for _ in range(MAX_TOOL_ROUNDS):
             completion = await client.chat.completions.create(
@@ -121,7 +159,7 @@ async def chat(request: ChatRequest) -> dict[str, Any]:
             conversation.append(assistant_message)
 
             if not message.tool_calls:
-                return {"reply": message.content or "Done.", "trace": trace}
+                return {"reply": message.content or "Done.", "trace": trace, "downloads": saved_files}
 
             for tool_call in message.tool_calls:
                 try:
@@ -132,6 +170,8 @@ async def chat(request: ChatRequest) -> dict[str, Any]:
                         json={"tool_name": tool_call.function.name, "arguments": arguments},
                     )
                     trace.append({"tool": tool_call.function.name, "status": result.get("status", "success")})
+                    if tool_call.function.name == "save_presentation":
+                        saved_files.extend(Path(path).name for path in find_saved_file_paths(result))
                     tool_content = serialize_tool_result(result)
                 except (json.JSONDecodeError, httpx.HTTPError, KeyError) as error:
                     trace.append({"tool": tool_call.function.name, "status": "error"})
@@ -144,6 +184,6 @@ async def chat(request: ChatRequest) -> dict[str, Any]:
                     }
                 )
 
-        return {"reply": "The request required too many tool steps. Please try a smaller request.", "trace": trace}
+        return {"reply": "The request required too many tool steps. Please try a smaller request.", "trace": trace, "downloads": saved_files}
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"OpenAI request failed: {error}") from error

@@ -136,6 +136,16 @@ Open the GUI at <http://localhost:8080>. The MCP HTTP API remains available at <
 
 The OpenAI key is passed only to the `powerpoint-gui` container. The GUI loads the MCP tool schemas from the server, lets OpenAI choose tools, and forwards each tool call to the local MCP API. Set `OPENAI_MODEL` in `.env` to use a different model.
 
+### Diagrams and web images
+
+The GUI can now create visuals as part of a presentation request:
+
+- `create_drawio_diagram` accepts GenAI-designed nodes and edges, writes an editable `.drawio` file, renders a PNG, and can place it on a slide.
+- `search_web_images` searches Wikimedia Commons without an API key and returns attribution metadata.
+- `download_web_image` downloads a selected Wikimedia image into the shared assets folder; use `manage_image` to place it on a slide.
+
+For example, ask the GUI: `Create a workflow slide about our onboarding process, add a Draw.io diagram, and include a relevant Wikimedia image with attribution.`
+
 To stop the stack:
 
 ```bash
